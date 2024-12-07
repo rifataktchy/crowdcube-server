@@ -1,6 +1,7 @@
 const express = require('express')
 const cors = require('cors')
 require('dotenv').config()
+// const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express()
 const port = process.env.PORT || 5000
@@ -9,9 +10,12 @@ const port = process.env.PORT || 5000
 app.use(cors())
 app.use(express.json())
 
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.o0bvl.mongodb.net/${process.env.DB_NAME}?retryWrites=true&w=majority&appName=Cluster0`;
 
 
+ const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.o0bvl.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
+  // const uri = "mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.o0bvl.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
+
+// Create a MongoClient with a MongoClientOptions object to set the Stable API version
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
@@ -24,125 +28,93 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB ya!");
     
-        const userCollection = client.db('coffeeDB').collection('users');
-        const campaignCollection = client.db('coffeeDB').collection('campaigns');
-console.log(userCollection, campaignCollection)
-
-app.get('/campaigns', async (req, res) => {
-    const cursor = campaignCollection.find();
-    const result = await cursor.toArray();
-    res.send(result);
-});
-
-app.get("/campaigns/:email", async (req, res, next) => {
-    const email = req.params.email;
-  
-    const userCampaigns = await campaignCollection.find({ userEmail: email }).toArray();
-    res.send(userCampaigns);
+    const campaignCollection = client.db('ccubeDB').collection('campaigns');
+    const userCollection = client.db('ccubeDB').collection('users');
+    const donateCollection = client.db('ccubeDB').collection('donate');
+//get all campaign data
+    app.get('/campaigns', async (req, res) => {
+      const cursor = campaignCollection.find();
+      const result = await cursor.toArray();
+      res.send(result);
   });
-  
-
-
-app.post('/campaigns', async (req, res) => {
-    const newCampaign = req.body;
-    const result = await campaignCollection.insertOne(newCampaign);
-            res.send(result);
-        });
-
-app.post('/donated', async (req, res) => {
-    const donation = req.body;
-
-    const result = await client.db("coffeeDB").collection("donated").insertOne(donation);
+  //get id specific data
+  app.get('/campaigns/:id', async (req, res) => {
+    const id = req.params.id;
+    const query = { _id: new ObjectId(id) };
+    const result = await campaignCollection.findOne(query);
     res.send(result);
-});
+})
+// //get data for my campaign
+// app.get("/campaigns/:email", async (req, res, next) => {
+//   const email = req.params.email;
 
-
-        app.get('/campaigns/:id', async (req, res) => {
+//   const userCampaigns = await campaignCollection.find({ userEmail: email }).toArray();
+//   res.send(userCampaigns);
+// });
+  //send all campaign data
+    app.post('/campaigns', async (req, res) => {
+      const newCampaign = req.body;
+      const result = await campaignCollection.insertOne(newCampaign);
+              res.send(result);
+          });
+          //update campaign
+          app.put('/campaigns/:id', async (req, res) => {
             const id = req.params.id;
-            const query = { _id: new ObjectId(id) };
-            const result = await client.db("coffeeDB").collection("campaigns").findOne(query);
-            res.send(result);
-        })
-
-        app.get('/myDonations', async (req, res) => {
-            const email = req.query.email;
-        
-            if (!email) {
-                return res.status(400).send({ error: "Email is required" });
+            const filter = { _id: new ObjectId(id) };
+            const options = { upsert: true };
+            const updatedDoc = {
+                $set: req.body
             }
-        
-            const donations = await client
-                .db("coffeeDB")
-                .collection("donated")
-                .find({ userEmail: email })
-                .toArray();
-        
-            res.send(donations);
-        });
-        
 
-       
+            const result = await campaignCollection.updateOne(filter, updatedDoc, options)
+
+            res.send(result);
+        })  
 
         // users related apis
         app.post('/users', async (req, res) => {
-            const newUser = req.body;
-            console.log('Adding new user', newUser)
+          const newUser = req.body;
+          console.log('Adding new user', newUser)
 
-            const result = await userCollection.insertOne(newUser);
-            res.send(result);
-        });
-
-        app.patch('/users', async (req, res) => {
-            const email = req.body.email;
-            const filter = { email };
-            const updatedDoc = {
-                $set: {
-                    lastSignInTime: req.body?.lastSignInTime
-                }
-            }
-
-            app.put('/campaigns/:id', async (req, res) => {
-                const id = req.params.id;
-                const filter = { _id: new ObjectId(id) };
-                const options = { upsert: true };
-                const updatedDoc = {
-                    $set: req.body
-                }
+          const result = await userCollection.insertOne(newUser);
+          res.send(result);
+      });
+      //send donate data
+      app.post('/donated', async (req, res) => {
+        const donation = req.body;
     
-                const result = await campaignCollection.updateOne(filter, updatedDoc, options)
-    
-                res.send(result);
-            })
-
-            // app.delete('/coffee/:id', async (req, res) => {
-            //     console.log('going to delete', req.params.id);
-            //     const id = req.params.id;
-            //     const query = { _id: new ObjectId(id) }
-            //     const result = await coffeeCollection.deleteOne(query);
-            //     res.send(result);
-            // })
-     
-
-            app.delete("/campaigns/:id", async (req, res) => {
-                const id = req.params.id;
-                const query = { _id: new ObjectId(id) }
-             const result = await client.db("coffeeDB").collection("campaigns").deleteOne(query);
-             res.send(result);
-              });
+        const result = await client.db("ccubeDB").collection("donate").insertOne(donation);
+        res.send(result);
+    });
+    //get donate data
+    app.get('/myDonations', async (req, res) => {
+      const email = req.query.email;
+  
+      if (!email) {
+          return res.status(400).send({ error: "Email is required" });
+      }
+  
+      const donations = await client
+          .db("ccubeDB")
+          .collection("donate")
+          .find({ userEmail: email })
+          .toArray();
+  
+      res.send(donations);
+  });
+    app.delete("/campaigns/:id", async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
+         const result = await client.db("ccubeDB").collection("campaigns").deleteOne(query);
+         res.send(result);
+          });
 
            
-            
-    
-            const result = await userCollection.updateOne(filter, updatedDoc);
-            res.send(result);
-        })
-        // console.log("Request ID:", id);
-        // console.log("Query:", { _id: new ObjectId(id) });
 
   } finally {
     // Ensures that the client will close when you finish/error
