@@ -2,20 +2,18 @@ const express = require('express')
 const cors = require('cors')
 require('dotenv').config()
 // const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+
 const app = express()
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT || 5000
 
 //middleware
 app.use(cors())
 app.use(express.json())
 
-
-
- const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.o0bvl.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
-  // const uri = "mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.o0bvl.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
-
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.o0bvl.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
+//const uri = "mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.o0bvl.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
+console.log(uri)
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
@@ -28,93 +26,103 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    // await client.connect();
+    await client.connect();
+   
     // Send a ping to confirm a successful connection
-    // await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB ya!");
-    
-    const campaignCollection = client.db('ccubeDB').collection('campaigns');
-    const userCollection = client.db('ccubeDB').collection('users');
-    const donateCollection = client.db('ccubeDB').collection('donate');
-//get all campaign data
+    await client.db("admin").command({ ping: 1 });
+    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    const campaignCollection = client.db('crowdDB').collection('campaigns');
+    const userCollection = client.db('crowdDB').collection('users');
+    const donationCollection = client.db('crowdDB').collection('donations');
+
     app.get('/campaigns', async (req, res) => {
       const cursor = campaignCollection.find();
       const result = await cursor.toArray();
       res.send(result);
   });
-  //get id specific data
-  app.get('/campaigns/:id', async (req, res) => {
-    const id = req.params.id;
-    const query = { _id: new ObjectId(id) };
+//   app.get('/campaigns/:id', async (req, res) => {
+//     const id = req.params.id;
+//     const query = { _id: new ObjectId(id) };
+//     const result = await campaignCollection.findOne(query);
+//     res.send(result);
+// })
+app.get('/campaigns/:id', async (req, res) => {
+  const id = req.params.id;
+
+  // Validate the id
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).send({ error: "Invalid campaign ID" });
+  }
+
+  const query = { _id: new ObjectId(id) };
+  try {
     const result = await campaignCollection.findOne(query);
+    if (!result) {
+      return res.status(404).send({ error: "Campaign not found" });
+    }
     res.send(result);
-})
-// //get data for my campaign
+  } catch (error) {
+    console.error("Error in /campaigns/:id:", error);
+    res.status(500).send({ error: "Internal server error" });
+  }
+});
+
 // app.get("/campaigns/:email", async (req, res, next) => {
 //   const email = req.params.email;
 
 //   const userCampaigns = await campaignCollection.find({ userEmail: email }).toArray();
 //   res.send(userCampaigns);
 // });
-  //send all campaign data
     app.post('/campaigns', async (req, res) => {
       const newCampaign = req.body;
       const result = await campaignCollection.insertOne(newCampaign);
               res.send(result);
           });
-          //update campaign
-          app.put('/campaigns/:id', async (req, res) => {
-            const id = req.params.id;
-            const filter = { _id: new ObjectId(id) };
-            const options = { upsert: true };
-            const updatedDoc = {
-                $set: req.body
-            }
-
-            const result = await campaignCollection.updateOne(filter, updatedDoc, options)
-
+          app.post('/users', async (req, res) => {
+            const newUser = req.body;
+            console.log('Adding new user', newUser)
+  
+            const result = await userCollection.insertOne(newUser);
             res.send(result);
-        })  
-
-        // users related apis
-        app.post('/users', async (req, res) => {
-          const newUser = req.body;
-          console.log('Adding new user', newUser)
-
-          const result = await userCollection.insertOne(newUser);
+        });
+        app.post('/donation', async (req, res) => {
+          const donation = req.body;
+      
+          const result = await donationCollection.insertOne(donation);
           res.send(result);
       });
-      //send donate data
-      app.post('/donated', async (req, res) => {
-        const donation = req.body;
+      app.get('/donation', async (req, res) => {
+        const email = req.query.email;
     
-        const result = await client.db("ccubeDB").collection("donate").insertOne(donation);
-        res.send(result);
+        if (!email) {
+            return res.status(400).send({ error: "Email is required" });
+        }
+    
+        const donations = await donationCollection.find({ userEmail: email })
+            .toArray();
+    
+        res.send(donations);
     });
-    //get donate data
-    app.get('/myDonations', async (req, res) => {
-      const email = req.query.email;
-  
-      if (!email) {
-          return res.status(400).send({ error: "Email is required" });
+    //update campaign
+    app.put('/campaigns/:id', async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const options = { upsert: true };
+      const updatedDoc = {
+          $set: req.body
       }
-  
-      const donations = await client
-          .db("ccubeDB")
-          .collection("donate")
-          .find({ userEmail: email })
-          .toArray();
-  
-      res.send(donations);
-  });
-    app.delete("/campaigns/:id", async (req, res) => {
-            const id = req.params.id;
-            const query = { _id: new ObjectId(id) }
-         const result = await client.db("ccubeDB").collection("campaigns").deleteOne(query);
-         res.send(result);
-          });
 
-           
+      const result = await campaignCollection.updateOne(filter, updatedDoc, options)
+
+      res.send(result);
+  })  
+
+    app.delete("/campaigns/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) }
+   const result = await campaignCollection.deleteOne(query);
+   res.send(result);
+    });
 
   } finally {
     // Ensures that the client will close when you finish/error
@@ -122,6 +130,7 @@ async function run() {
   }
 }
 run().catch(console.dir);
+
 
 
 app.get('/', (req, res) => {
